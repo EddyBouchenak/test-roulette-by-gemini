@@ -1,12 +1,18 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- CONFIGURATION ---
+    // --- CONFIG ---
     const ITEM_HEIGHT = 60;
+    const DISPLAY_LIMIT = 300; // Nombre max d'éléments dans la liste pour éviter l'écran noir
     let currentLanguage = "FR";
-    let isDarkMode = true; // Sombre par défaut
+    let isDarkMode = true;
 
-    // Liste de secours si data.js échoue
+    // Fallback si data.js plante ou est vide
     const FALLBACK_WORDS = ["ROUGE", "BLEU", "VERT", "JAUNE", "NOIR", "BLANC", "ORANGE", "VIOLET"];
-    const WORDS_EN = ["APPLE", "BOOK", "CAT", "DOG", "EAGLE", "FIRE", "GHOST", "HOUSE", "IRON", "JUNGLE", "KING", "LION", "MAGIC", "NIGHT", "OCEAN", "PAPER", "QUEEN", "RIVER", "STORM", "TIGER", "UMBRELLA", "VOICE", "WATER", "XRAY", "YELLOW", "ZEBRA"];
+    // Dictionnaire Anglais manuel (au cas où data.js n'en a pas)
+    const WORDS_EN = [
+        "APPLE", "BOOK", "CLOUD", "DOOR", "EAGLE", "FIRE", "GHOST", "HOUSE", "IRON", "JUNGLE", 
+        "KNIFE", "LIGHT", "MAGIC", "NIGHT", "OCEAN", "PAPER", "QUEEN", "RIVER", "STORM", "TIGER", 
+        "UMBRELLA", "VOICE", "WATER", "XRAY", "YELLOW", "ZEBRA", "GARDEN", "STREET", "MUSIC", "PHONE"
+    ];
 
     // --- ETAT ---
     const APP_STATE = {
@@ -20,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ticking: false
     };
 
-    // --- ELEMENTS DOM ---
+    // --- DOM ---
     const wheel = document.getElementById('wheel');
     const langBtn = document.getElementById('lang-toggle');
     const themeBtn = document.getElementById('theme-toggle');
@@ -28,52 +34,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- INITIALISATION ---
     function init() {
-        console.log("App initialized");
+        console.log("App Started");
         setupTriggers();
         setupModals();
         
         // Rendu initial
         renderWheel();
 
-        // Scroll initial au milieu
+        // Centrage initial (avec petit délai pour le rendu)
         setTimeout(() => {
-            wheel.scrollTop = ITEM_HEIGHT * 50; 
+            // On se place au tiers de la liste
+            wheel.scrollTop = ITEM_HEIGHT * 100;
             updateVisuals();
         }, 100);
 
-        // Ecouteurs de scroll
+        // Ecouteur de scroll optimisé
         wheel.addEventListener('scroll', handleScroll, { passive: true });
     }
 
+    // --- RENDU INTELLIGENT ---
     function getWords() {
         if (currentLanguage === "EN") return WORDS_EN;
-        // Vérifie si data.js a bien chargé window.WORDS
+        // Vérifie si data.js est chargé
         return (window.WORDS && window.WORDS.length > 0) ? window.WORDS : FALLBACK_WORDS;
     }
 
     function renderWheel() {
-    const words = getWords();
-    if(!words || words.length === 0) return;
-
-    // OPTIMISATION ANTI-CRASH
-    // Si la liste est énorme (> 500 mots), on ne la répète que 5 fois.
-    // Si la liste est petite, on la répète plus souvent pour l'illusion.
-    const repeatCount = words.length > 500 ? 5 : 40;
-    
-    // Utilisation d'un tableau pour joindre les chaines (plus rapide que +=)
-    let htmlParts = [];
-    
-    for(let i=0; i<repeatCount; i++) { 
-        for(let w of words) {
-            htmlParts.push(`<li>${w}</li>`);
+        const sourceWords = getWords();
+        let htmlParts = [];
+        
+        // On crée une liste de taille fixe (300 items) en bouclant sur les mots sources
+        // Cela permet d'avoir un scroll fluide même si data.js contient 100,000 mots
+        for(let i=0; i < DISPLAY_LIMIT; i++) {
+            const word = sourceWords[i % sourceWords.length];
+            htmlParts.push(`<li>${word}</li>`);
         }
+        
+        wheel.innerHTML = htmlParts.join('');
     }
-    
-    // Injection en une seule fois
-    wheel.innerHTML = htmlParts.join('');
-    
-    console.log(`Roue chargée : ${words.length} mots répétés ${repeatCount} fois.`);
-}
 
     // --- LOGIQUE SCROLL & MAGIE ---
 
@@ -87,17 +85,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         clearTimeout(APP_STATE.scrollTimeout);
-        
-        // Détection arrêt du scroll (80ms sans mouvement)
-        APP_STATE.scrollTimeout = setTimeout(snapAndValidate, 80);
+        // Si le scroll s'arrête pendant 60ms, on considère que c'est fini -> Snap
+        APP_STATE.scrollTimeout = setTimeout(snapAndValidate, 60);
     }
 
+    // Effet Loupe Visuel
     function updateVisuals() {
         const center = wheel.scrollTop + (wheel.clientHeight / 2);
-        const elements = wheel.children;
         const centerIndex = Math.floor(center / ITEM_HEIGHT);
-        
-        // Optimisation : boucle seulement sur les éléments visibles (+/- 6)
+        const elements = wheel.children;
+
+        // On ne boucle que sur les éléments visibles (+/- 6) pour la performance
         const start = Math.max(0, centerIndex - 6);
         const end = Math.min(elements.length - 1, centerIndex + 6);
 
@@ -107,13 +105,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const dist = Math.abs(center - elCenter);
 
             if (dist < ITEM_HEIGHT) {
-                // Centre : Gros et opaque
                 const ratio = 1 - (dist / ITEM_HEIGHT);
-                el.style.opacity = 0.5 + (ratio * 0.5);
-                el.style.transform = `scale(${1 + (ratio * 0.2)}) translateZ(0)`;
+                el.style.opacity = 0.4 + (ratio * 0.6); // 0.4 -> 1.0
+                el.style.transform = `scale(${0.95 + (ratio * 0.25)}) translateZ(0)`;
                 el.style.color = "var(--text-color)";
             } else {
-                // Bords : Petit et transparent
                 el.style.opacity = 0.3;
                 el.style.transform = "scale(0.9) translateZ(0)";
                 el.style.color = "var(--text-color)";
@@ -121,24 +117,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Alignement et Injection du mot forcé
     function snapAndValidate() {
         const currentScroll = wheel.scrollTop;
         const targetIndex = Math.round(currentScroll / ITEM_HEIGHT);
         const targetScroll = targetIndex * ITEM_HEIGHT;
 
-        // 1. ANTICIPATION (Changer le mot AVANT le snap visuel)
+        // 1. ANTICIPATION (MAGIE)
+        // On modifie le mot AVANT que le scroll ne soit visuellement calé
         applyMagic(targetIndex);
 
-        // 2. SNAP (Alignement fluide)
+        // 2. SNAP
         if (Math.abs(currentScroll - targetScroll) > 1) {
             wheel.scrollTo({ top: targetScroll, behavior: 'smooth' });
         }
 
         // 3. VALIDATION (Après stabilisation)
         setTimeout(() => {
-            // Index réel au centre (dépend du padding CSS)
-            // Padding top = 50vh - 30px. 
-            // Donc l'élément à 'targetIndex' EST celui au centre.
+            // L'élément au centre physique correspond à l'index + offset du padding
+            const centerOffset = Math.floor((wheel.clientHeight / ITEM_HEIGHT) / 2); // Devrait être 0 si padding calculé correctement, mais vérifions
+            // Avec le padding CSS calc(50vh), le scrollTop 0 met l'index 0 au milieu.
+            // Donc targetIndex est le bon.
+            
             const el = wheel.children[targetIndex];
             if (el) {
                 const word = el.innerText;
@@ -151,27 +151,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     APP_STATE.lastMagicApplied = null;
                 }
             }
-        }, 300);
+        }, 250);
     }
 
     function applyMagic(targetIndex) {
         const el = wheel.children[targetIndex];
         if (!el) return;
 
-        // MODE FORCE
+        // FORCE MODE
         if (APP_STATE.mode === 'FORCE') {
             APP_STATE.forceConfig.count--;
             if (APP_STATE.forceConfig.count <= 0) {
-                // Changement discret
                 if (el.innerText !== APP_STATE.forceConfig.target) {
                     el.innerText = APP_STATE.forceConfig.target;
                 }
                 APP_STATE.lastMagicApplied = 'FORCE';
-                APP_STATE.mode = 'NORMAL'; // Reset
+                APP_STATE.mode = 'NORMAL';
                 APP_STATE.forceConfig.count = APP_STATE.forceConfig.initialCount;
             }
         }
-        // MODE VRTX
+        // VRTX MODE
         else if (APP_STATE.mode === 'VRTX') {
             const source = APP_STATE.vrtxConfig.word;
             const rank = APP_STATE.vrtxConfig.rank;
@@ -179,18 +178,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (idx < source.length) {
                 const letter = source[idx];
-                let forcedWord = "X" + letter + "X"; // Fallback
+                let forcedWord = "X" + letter + "X";
 
                 // Recherche dans data.js
                 if (window.WORDS_BY_RANK && window.WORDS_BY_RANK[rank] && window.WORDS_BY_RANK[rank][letter]) {
                     const candidates = window.WORDS_BY_RANK[rank][letter];
-                    // Eviter le mot source
                     const filtered = candidates.filter(w => w !== source);
                     if (filtered.length > 0) {
                         forcedWord = filtered[Math.floor(Math.random() * filtered.length)];
                     } else {
                         forcedWord = candidates[0];
                     }
+                } else {
+                    // Recherche basique si data.js n'a pas les rangs
+                    const simpleList = getWords();
+                    const matches = simpleList.filter(w => w.length >= rank && w[rank-1] === letter);
+                    if(matches.length > 0) forcedWord = matches[Math.floor(Math.random() * matches.length)];
                 }
 
                 el.innerText = forcedWord;
@@ -204,15 +207,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- UI & TRIGGERS ---
+    // --- INTERACTION ---
 
     langBtn.onclick = () => {
         currentLanguage = currentLanguage === "FR" ? "EN" : "FR";
         langBtn.innerText = currentLanguage;
-        // Garder la position
-        const scrollRatio = wheel.scrollTop / wheel.scrollHeight;
+        // Sauvegarde position
+        const ratio = wheel.scrollTop / wheel.scrollHeight;
         renderWheel();
-        wheel.scrollTop = scrollRatio * wheel.scrollHeight;
+        wheel.scrollTop = ratio * wheel.scrollHeight;
     };
 
     themeBtn.onclick = () => {
@@ -222,42 +225,43 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     function setupTriggers() {
-        const setupZone = (id, callback) => {
+        const zones = {
+            'trigger-left': () => openModal('force'),
+            'trigger-center': () => openModal('history'),
+            'trigger-right': () => openModal('vrtx')
+        };
+
+        for (const [id, action] of Object.entries(zones)) {
             const el = document.getElementById(id);
             let clicks = 0;
-            let timer;
+            let clickTimer;
+            let pressTimer;
 
-            // Triple Clic Desktop
-            el.addEventListener('click', () => {
+            // Triple Clic
+            el.addEventListener('click', (e) => {
                 clicks++;
-                clearTimeout(timer);
-                timer = setTimeout(() => clicks = 0, 400);
+                clearTimeout(clickTimer);
+                clickTimer = setTimeout(() => clicks = 0, 400);
                 if (clicks === 3) {
-                    callback();
                     clicks = 0;
+                    action();
                 }
             });
 
-            // Long Press Mobile
-            let pressTimer;
-            const start = (e) => {
-               // e.preventDefault(); // Attention: empêche le scroll si mal placé
-               pressTimer = setTimeout(() => {
-                   callback();
-                   if(navigator.vibrate) navigator.vibrate(50);
-               }, 1000);
+            // Appui Long (Mobile)
+            const start = () => {
+                pressTimer = setTimeout(() => {
+                    if(navigator.vibrate) navigator.vibrate(50);
+                    action();
+                }, 1000);
             };
-            const cancel = () => clearTimeout(pressTimer);
+            const end = () => clearTimeout(pressTimer);
 
             el.addEventListener('touchstart', start, {passive: true});
-            el.addEventListener('touchend', cancel);
+            el.addEventListener('touchend', end);
             el.addEventListener('mousedown', start);
-            el.addEventListener('mouseup', cancel);
-        };
-
-        setupZone('trigger-left', () => openModal('force'));
-        setupZone('trigger-center', () => openModal('history'));
-        setupZone('trigger-right', () => openModal('vrtx'));
+            el.addEventListener('mouseup', end);
+        }
 
         modalOverlay.addEventListener('click', (e) => {
             if(e.target === modalOverlay) closeModal();
@@ -266,8 +270,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function openModal(id) {
         modalOverlay.classList.remove('hidden');
-        document.querySelectorAll('.modal-content').forEach(d => d.classList.add('hidden'));
+        document.querySelectorAll('.modal-content').forEach(c => c.classList.add('hidden'));
         document.getElementById('modal-' + id).classList.remove('hidden');
+        
+        // Focus sur l'input s'il y en a un
+        const input = document.querySelector(`#modal-${id} input`);
+        if(input) setTimeout(() => input.focus(), 100);
+
         if(id === 'history') renderHistory();
     }
 
@@ -278,7 +287,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function setupModals() {
         // FORCE
         const forceGroup = document.getElementById('force-count-group');
-        createRadios(forceGroup, 6, val => APP_STATE.forceConfig.initialCount = val);
+        createRadios(forceGroup, 6, v => APP_STATE.forceConfig.initialCount = v);
+        
         document.getElementById('btn-force-activate').onclick = () => {
             const val = document.getElementById('force-word-input').value.toUpperCase().trim();
             if(val && APP_STATE.forceConfig.initialCount > 0) {
@@ -291,12 +301,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // VRTX
         const vrtxGroup = document.getElementById('vrtx-rank-group');
-        createRadios(vrtxGroup, 6, val => APP_STATE.vrtxConfig.rank = val);
-        const vrtxInput = document.getElementById('vrtx-word-input');
-        vrtxInput.oninput = (e) => document.getElementById('vrtx-counter').innerText = `(${e.target.value.length})`;
+        createRadios(vrtxGroup, 6, v => APP_STATE.vrtxConfig.rank = v);
         
+        const vInput = document.getElementById('vrtx-word-input');
+        vInput.oninput = (e) => document.getElementById('vrtx-counter').innerText = `(${e.target.value.length})`;
+
         document.getElementById('btn-vrtx-activate').onclick = () => {
-            const val = vrtxInput.value.toUpperCase().trim();
+            const val = vInput.value.toUpperCase().trim();
             if(val && APP_STATE.vrtxConfig.rank > 0) {
                 APP_STATE.mode = 'VRTX';
                 APP_STATE.vrtxConfig.word = val;
@@ -305,16 +316,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        // HISTORY
+        // History
         document.getElementById('btn-clear-history').onclick = () => {
             APP_STATE.history = [];
             renderHistory();
         };
     }
 
-    function createRadios(container, n, cb) {
+    function createRadios(container, count, cb) {
         container.innerHTML = "";
-        for(let i=1; i<=n; i++) {
+        for(let i=1; i<=count; i++) {
             const d = document.createElement('div');
             d.className = 'radio-btn';
             d.innerText = i;
@@ -328,13 +339,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderHistory() {
-        const ul = document.getElementById('history-list');
-        ul.innerHTML = "";
+        const list = document.getElementById('history-list');
+        list.innerHTML = "";
         [...APP_STATE.history].reverse().forEach(h => {
             const li = document.createElement('li');
-            li.innerHTML = `<span>${h.word}</span> <small>${h.type}</small>`;
+            li.innerHTML = `<span>${h.word}</span> <small style="opacity:0.5; font-size:0.8rem">${h.type}</small>`;
             if(h.type !== 'NORMAL') li.classList.add('forced');
-            ul.appendChild(li);
+            list.appendChild(li);
         });
     }
 
@@ -349,10 +360,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 await window.addDoc(window.collection(window.db, "history"), {
                     word: word, type: type, timestamp: window.serverTimestamp()
                 });
-            } catch(e) { console.log("Firebase inactive"); }
+            } catch(e) {}
         }
     }
 
-    // Start
     init();
 });

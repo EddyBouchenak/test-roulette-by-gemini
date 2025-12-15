@@ -1,4 +1,5 @@
 :root {
+    /* Thème Sombre par défaut */
     --bg-color: #111111;
     --text-color: #ffffff;
     --lens-border: rgba(255, 255, 255, 0.2);
@@ -17,53 +18,45 @@ body.theme-light {
 
 body {
     margin: 0;
-    height: 100vh; /* Utiliser 100vh au lieu de fixed */
+    height: 100vh;
     width: 100vw;
     background-color: var(--bg-color);
     color: var(--text-color);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    overflow: hidden; /* Empêche le scroll global */
+    overflow: hidden; /* Empêche le rebond global */
     transition: background-color 0.3s, color 0.3s;
+    user-select: none;
 }
 
-/* Header Fixe et Cliquable */
+/* Header */
 .header {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 70px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0 20px;
-    box-sizing: border-box;
-    z-index: 50; 
-    pointer-events: none; /* Laisse passer les clics au travers */
+    top: 0; left: 0; width: 100%; height: 70px;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0 20px; box-sizing: border-box;
+    z-index: 50;
+    pointer-events: none; /* Laisse passer les clics vers la liste si on rate le bouton */
 }
 
 .header button {
-    pointer-events: auto; /* Réactive le clic sur les boutons */
+    pointer-events: auto; /* Boutons cliquables */
     background: rgba(128, 128, 128, 0.2);
-    backdrop-filter: blur(4px);
-    border-radius: 12px;
+    backdrop-filter: blur(5px);
     border: 1px solid var(--lens-border);
-    font-size: 1.2rem;
+    border-radius: 12px;
     color: var(--text-color);
+    font-size: 1rem;
+    font-weight: bold;
+    padding: 10px 16px;
     cursor: pointer;
-    padding: 10px 15px;
-    transition: transform 0.1s;
 }
-.header button:active { transform: scale(0.95); }
 
-/* Roue de sélection */
+/* Roue */
 .picker-container {
     position: relative;
-    height: 100%;
-    width: 100%;
-    /* Masque progressif haut/bas */
-    mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%);
-    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%);
+    height: 100%; width: 100%;
+    mask-image: linear-gradient(to bottom, transparent 0%, black 25%, black 75%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 25%, black 75%, transparent 100%);
 }
 
 .focus-lens {
@@ -77,43 +70,40 @@ body {
 }
 
 .wheel {
-    list-style: none;
-    padding: 0; margin: 0;
+    list-style: none; padding: 0; margin: 0;
     width: 100%; height: 100%;
-    overflow-y: auto; /* auto est plus fluide que scroll sur certains os */
+    overflow-y: auto;
     scroll-snap-type: y mandatory;
+    scrollbar-width: none;
+    /* Padding pour centrer le premier et dernier élément */
     padding-top: calc(50vh - 30px);
     padding-bottom: calc(50vh - 30px);
-    scrollbar-width: none;
 }
 .wheel::-webkit-scrollbar { display: none; }
 
 .wheel li {
     height: var(--item-height);
-    display: flex; 
-    justify-content: center; 
-    align-items: center;
+    display: flex; justify-content: center; align-items: center;
     font-size: 1.6rem;
     font-weight: 600;
-    scroll-snap-align: center;
     text-transform: uppercase;
+    scroll-snap-align: center;
     
-    /* OPTIMISATION MAJEURE ICI : */
-    content-visibility: auto; /* Ne dessine que si visible à l'écran */
-    contain-intrinsic-size: var(--item-height); /* Réserve la place */
-    
-    transform: translateZ(0); 
+    /* OPTIMISATION MAJEURE PERFORMANCES */
+    content-visibility: auto; 
+    contain-intrinsic-size: var(--item-height);
+    transform: translateZ(0);
     will-change: opacity, transform;
 }
 
-/* Zones invisibles (Triggers) */
+/* Zones Secrètes (Triggers) */
 .trigger-zone {
     position: absolute;
-    bottom: 0;
-    height: 100px;
-    width: 33%;
-    z-index: 100; /* Très haut pour être cliquable */
-    /* background: rgba(255,0,0,0.1); Pour tester, décommentez */
+    bottom: 0; height: 120px; width: 33%;
+    z-index: 9999; /* Au dessus de tout */
+    cursor: pointer;
+    /* Permet de scroller si on glisse, mais détecte le clic */
+    touch-action: pan-y; 
 }
 .trigger-zone.left { left: 0; }
 .trigger-zone.center { left: 33%; }
@@ -121,9 +111,10 @@ body {
 
 /* Modales */
 .modal-overlay {
-    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
     background: rgba(0,0,0,0.85);
-    z-index: 200;
+    backdrop-filter: blur(3px);
+    z-index: 10000;
     display: flex; justify-content: center; align-items: flex-end;
     opacity: 1; transition: opacity 0.2s;
 }
@@ -132,30 +123,34 @@ body {
 .modal-content {
     background: var(--modal-bg);
     width: 100%; max-width: 500px;
-    padding: 20px; padding-bottom: 40px;
+    padding: 25px 20px 50px 20px;
     border-radius: 20px 20px 0 0;
-    animation: slideUp 0.3s;
+    box-shadow: 0 -10px 30px rgba(0,0,0,0.5);
+    animation: slideUp 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 
-h2 { margin: 0 0 20px 0; text-align: center; font-size: 1.2rem; color: var(--text-color); }
-.input-group label { display: block; font-size: 0.8rem; margin-bottom: 5px; opacity: 0.7; }
+h2 { margin: 0 0 20px 0; text-align: center; font-size: 1.1rem; letter-spacing: 1px; color: var(--text-color); opacity: 0.8; }
+
+.input-group label { display: block; font-size: 0.8rem; margin-bottom: 8px; opacity: 0.6; text-transform: uppercase; }
 input[type="text"] {
-    width: 100%; padding: 15px; border-radius: 10px; border: 1px solid #555;
-    background: #333; color: white; font-size: 1.2rem; text-transform: uppercase;
-    box-sizing: border-box; outline: none;
+    width: 100%; padding: 15px; border-radius: 12px; border: 1px solid #444;
+    background: #2c2c2e; color: white; font-size: 1.2rem; text-transform: uppercase;
+    box-sizing: border-box; outline: none; -webkit-appearance: none;
 }
-.radio-group { display: flex; gap: 10px; margin-top: 10px; }
+input[type="text"]:focus { border-color: var(--accent); }
+
+.radio-group { display: flex; gap: 8px; margin-top: 5px; }
 .radio-btn {
-    flex: 1; height: 50px; background: #333; border-radius: 8px;
+    flex: 1; height: 50px; background: #2c2c2e; border-radius: 10px;
     display: flex; align-items: center; justify-content: center;
-    font-weight: bold; cursor: pointer; border: 1px solid #444;
+    font-weight: bold; cursor: pointer; transition: 0.2s;
 }
-.radio-btn.selected { background: var(--accent); border-color: var(--accent); color: white; }
+.radio-btn.selected { background: var(--accent); color: white; }
 
-.action-btn { width: 100%; padding: 15px; margin-top: 15px; background: var(--accent); color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 1rem; }
-.danger-btn { width: 100%; padding: 15px; background: var(--danger); color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 1rem; margin-top: 10px;}
+.action-btn { width: 100%; padding: 18px; margin-top: 20px; background: var(--accent); color: white; border: none; border-radius: 14px; font-weight: bold; font-size: 1rem; }
+.danger-btn { width: 100%; padding: 18px; margin-top: 10px; background: var(--danger); color: white; border: none; border-radius: 14px; font-weight: bold; font-size: 1rem; }
 
-#history-list { list-style: none; padding: 0; max-height: 200px; overflow-y: auto; color: var(--text-color); }
-#history-list li { padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; }
+#history-list { list-style: none; padding: 0; max-height: 250px; overflow-y: auto; margin-bottom: 20px; }
+#history-list li { padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; font-size: 1.1rem; }
 #history-list li.forced { color: var(--accent); }

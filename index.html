@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Roulette v2.2</title>
+    <title>Roulette Ultimate</title>
     <link rel="stylesheet" href="style.css">
     
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
         import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
         
-        // Laisser vide ou mettre vos clés. Le app.js gérera si ça manque.
+        // Remplacer par vos clés si vous utilisez le receiver à distance
         const firebaseConfig = {
             apiKey: "API_KEY",
             authDomain: "PROJECT.firebaseapp.com",
@@ -26,9 +26,8 @@
             window.addDoc = addDoc;
             window.collection = collection;
             window.serverTimestamp = serverTimestamp;
-            console.log("Firebase initialized");
         } catch (e) {
-            console.log("Firebase non configuré ou erreur locale (CORS)");
+            console.log("Mode hors-ligne (Firebase non configuré)");
         }
     </script>
 </head>
@@ -42,15 +41,16 @@
     <div class="picker-container">
         <div class="focus-lens"></div>
         <ul id="wheel" class="wheel">
-            <li style="opacity:0.5; font-size: 1rem;">Chargement...</li>
+            <li style="opacity:0.5">Chargement...</li>
         </ul>
     </div>
 
-    <div id="trigger-left" class="trigger-zone left" title="Force"></div>
-    <div id="trigger-center" class="trigger-zone center" title="History"></div>
-    <div id="trigger-right" class="trigger-zone right" title="VRTX"></div>
+    <div id="trigger-left" class="trigger-zone left"></div>
+    <div id="trigger-center" class="trigger-zone center"></div>
+    <div id="trigger-right" class="trigger-zone right"></div>
 
     <div id="modal-overlay" class="modal-overlay hidden">
+        
         <div id="modal-force" class="modal-content hidden">
             <h2>MODE FORCE</h2>
             <div class="input-group">
@@ -58,7 +58,7 @@
                 <input type="text" id="force-word-input" placeholder="Ex: VASE" autocomplete="off">
             </div>
             <div class="input-group">
-                <label>Scrolls avant forcage</label>
+                <label>Nombre de Scrolls</label>
                 <div class="radio-group" id="force-count-group"></div>
             </div>
             <button id="btn-force-activate" class="action-btn">ACTIVER</button>
