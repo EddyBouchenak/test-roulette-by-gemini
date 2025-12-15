@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Roulette v2</title>
+    <link rel="stylesheet" href="style.css">
+    <script type="module">
+        // Importation Firebase pour app.js
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+        
+        // CONFIGURATION FIREBASE (À REMPLIR)
+        const firebaseConfig = {
+            apiKey: "VOTRE_API_KEY",
+            authDomain: "VOTRE_PROJECT.firebaseapp.com",
+            projectId: "VOTRE_PROJECT_ID",
+            storageBucket: "VOTRE_BUCKET.appspot.com",
+            messagingSenderId: "VOTRE_SENDER_ID",
+            appId: "VOTRE_APP_ID"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        window.db = getFirestore(app);
+        window.addDoc = addDoc;
+        window.collection = collection;
+        window.serverTimestamp = serverTimestamp;
+    </script>
+</head>
+<body class="theme-light">
+
+    <div class="header">
+        <button id="theme-toggle" class="icon-btn">🌙</button>
+        <button id="lang-toggle" class="text-btn">FR</button>
+    </div>
+
+    <div class="picker-container">
+        <div class="focus-lens"></div> <ul id="wheel" class="wheel">
+            </ul>
+    </div>
+
+    <div id="trigger-left" class="trigger-zone left"></div>   <div id="trigger-center" class="trigger-zone center"></div> <div id="trigger-right" class="trigger-zone right"></div>  <div id="modal-overlay" class="modal-overlay hidden">
+        
+        <div id="modal-force" class="modal-content hidden">
+            <h2>MODE FORCE</h2>
+            <div class="input-group">
+                <label>Mot Cible</label>
+                <input type="text" id="force-word-input" placeholder="Ex: VASE" uppercase>
+            </div>
+            <div class="input-group">
+                <label>Scrolls avant forcage</label>
+                <div class="radio-group" id="force-count-group">
+                    </div>
+            </div>
+            <button id="btn-force-activate" class="action-btn">ACTIVER</button>
+        </div>
+
+        <div id="modal-vrtx" class="modal-content hidden">
+            <h2>MODE VRTX</h2>
+            <div class="input-group">
+                <label>Mot Source <span id="vrtx-counter">(0)</span></label>
+                <input type="text" id="vrtx-word-input" placeholder="Ex: BOXE">
+            </div>
+            <div class="input-group">
+                <label>Rang de la lettre</label>
+                <div class="radio-group" id="vrtx-rank-group">
+                    </div>
+            </div>
+            <button id="btn-vrtx-activate" class="action-btn">ACTIVER</button>
+        </div>
+
+        <div id="modal-history" class="modal-content hidden">
+            <h2>HISTORIQUE</h2>
+            <ul id="history-list"></ul>
+            <button id="btn-clear-history" class="danger-btn">EFFACER</button>
+        </div>
+    </div>
+
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
