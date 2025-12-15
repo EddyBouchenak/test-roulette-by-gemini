@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Roulette v2</title>
+    <title>Roulette v2.1</title>
     <link rel="stylesheet" href="style.css">
     <script type="module">
-        // Importation Firebase pour app.js
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
         import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
         
@@ -27,15 +26,14 @@
         window.serverTimestamp = serverTimestamp;
     </script>
 </head>
-<body class="theme-light">
-
-    <div class="header">
-        <button id="theme-toggle" class="icon-btn">🌙</button>
+<body class="theme-dark"> <div class="header">
+        <button id="theme-toggle" class="icon-btn">☀️</button>
         <button id="lang-toggle" class="text-btn">FR</button>
     </div>
 
     <div class="picker-container">
-        <div class="focus-lens"></div> <ul id="wheel" class="wheel">
+        <div class="focus-lens"></div>
+        <ul id="wheel" class="wheel">
             </ul>
     </div>
 
@@ -45,12 +43,11 @@
             <h2>MODE FORCE</h2>
             <div class="input-group">
                 <label>Mot Cible</label>
-                <input type="text" id="force-word-input" placeholder="Ex: VASE" uppercase>
+                <input type="text" id="force-word-input" placeholder="Ex: VASE" autocomplete="off">
             </div>
             <div class="input-group">
                 <label>Scrolls avant forcage</label>
-                <div class="radio-group" id="force-count-group">
-                    </div>
+                <div class="radio-group" id="force-count-group"></div>
             </div>
             <button id="btn-force-activate" class="action-btn">ACTIVER</button>
         </div>
@@ -59,12 +56,11 @@
             <h2>MODE VRTX</h2>
             <div class="input-group">
                 <label>Mot Source <span id="vrtx-counter">(0)</span></label>
-                <input type="text" id="vrtx-word-input" placeholder="Ex: BOXE">
+                <input type="text" id="vrtx-word-input" placeholder="Ex: BOXE" autocomplete="off">
             </div>
             <div class="input-group">
                 <label>Rang de la lettre</label>
-                <div class="radio-group" id="vrtx-rank-group">
-                    </div>
+                <div class="radio-group" id="vrtx-rank-group"></div>
             </div>
             <button id="btn-vrtx-activate" class="action-btn">ACTIVER</button>
         </div>
@@ -79,4 +75,4 @@
     <script src="data.js"></script>
     <script src="app.js"></script>
 </body>
-</html> 
+</html>
