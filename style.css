@@ -90,12 +90,18 @@ body {
 
 .wheel li {
     height: var(--item-height);
-    display: flex; justify-content: center; align-items: center;
+    display: flex; 
+    justify-content: center; 
+    align-items: center;
     font-size: 1.6rem;
     font-weight: 600;
     scroll-snap-align: center;
     text-transform: uppercase;
-    /* Force l'accélération matérielle */
+    
+    /* OPTIMISATION MAJEURE ICI : */
+    content-visibility: auto; /* Ne dessine que si visible à l'écran */
+    contain-intrinsic-size: var(--item-height); /* Réserve la place */
+    
     transform: translateZ(0); 
     will-change: opacity, transform;
 }

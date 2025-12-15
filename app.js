@@ -52,16 +52,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderWheel() {
-        const words = getWords();
-        let html = "";
-        // Répétition pour illusion infinie
-        for(let i=0; i<100; i++) { 
-            for(let w of words) {
-                html += `<li>${w}</li>`;
-            }
+    const words = getWords();
+    if(!words || words.length === 0) return;
+
+    // OPTIMISATION ANTI-CRASH
+    // Si la liste est énorme (> 500 mots), on ne la répète que 5 fois.
+    // Si la liste est petite, on la répète plus souvent pour l'illusion.
+    const repeatCount = words.length > 500 ? 5 : 40;
+    
+    // Utilisation d'un tableau pour joindre les chaines (plus rapide que +=)
+    let htmlParts = [];
+    
+    for(let i=0; i<repeatCount; i++) { 
+        for(let w of words) {
+            htmlParts.push(`<li>${w}</li>`);
         }
-        wheel.innerHTML = html;
     }
+    
+    // Injection en une seule fois
+    wheel.innerHTML = htmlParts.join('');
+    
+    console.log(`Roue chargée : ${words.length} mots répétés ${repeatCount} fois.`);
+}
 
     // --- LOGIQUE SCROLL & MAGIE ---
 

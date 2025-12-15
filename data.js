@@ -14179,6 +14179,6 @@ const WORDS = [
     "ZOUAVE"
 ];
 
-// Expose to global scope
-window.WORDS_BY_RANK = WORDS_BY_RANK;
+// EXPOSITION GLOBALE (Très important)
 window.WORDS = WORDS;
+window.WORDS_BY_RANK = WORDS_BY_RANK; // Si vous utilisez le mode VRTX avec rang
