@@ -1,17 +1,19 @@
 :root {
-    --bg-color: #ffffff;
-    --text-color: #000000;
-    --lens-border: rgba(0, 0, 0, 0.1);
-    --modal-bg: #f2f2f2;
-    --accent: #007aff;
-    --danger: #ff3b30;
-}
-
-body.theme-dark {
+    /* Valeurs par défaut (Theme Dark) */
     --bg-color: #111111;
     --text-color: #ffffff;
     --lens-border: rgba(255, 255, 255, 0.2);
     --modal-bg: #1c1c1e;
+    --accent: #0a84ff;
+    --danger: #ff453a;
+    --item-height: 60px;
+}
+
+body.theme-light {
+    --bg-color: #ffffff;
+    --text-color: #000000;
+    --lens-border: rgba(0, 0, 0, 0.1);
+    --modal-bg: #f2f2f2;
 }
 
 body {
@@ -21,30 +23,42 @@ body {
     background-color: var(--bg-color);
     color: var(--text-color);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    overflow: hidden;
+    overflow: hidden; /* Empêche le scroll de la page entière */
     user-select: none;
     transition: background-color 0.3s, color 0.3s;
 }
 
-/* UI Header */
+/* UI Header FIXE */
 .header {
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    right: 20px;
+    position: fixed; /* Fixé en haut */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 60px;
     display: flex;
     justify-content: space-between;
-    z-index: 10;
+    align-items: center;
+    padding: 0 20px;
+    box-sizing: border-box;
+    z-index: 100; /* Au dessus de la liste */
+    background: linear-gradient(to bottom, var(--bg-color) 0%, transparent 100%);
+    pointer-events: none; /* Laisse passer les clics si on ne touche pas les boutons */
 }
 
-button {
-    background: none;
+.header button {
+    pointer-events: auto; /* Réactive les clics sur les boutons */
+    background: rgba(128, 128, 128, 0.1);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
     border: none;
-    font-size: 1.2rem;
+    font-size: 1rem;
+    font-weight: bold;
     color: var(--text-color);
     cursor: pointer;
-    padding: 10px;
+    padding: 8px 16px;
+    transition: transform 0.1s;
 }
+.header button:active { transform: scale(0.95); }
 
 /* Picker Container */
 .picker-container {
@@ -54,22 +68,23 @@ button {
     display: flex;
     justify-content: center;
     align-items: center;
-    perspective: 1000px;
+    /* Masque d'opacité haut/bas pour effet 3D */
+    mask-image: linear-gradient(to bottom, transparent, black 40%, black 60%, transparent);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, black 40%, black 60%, transparent);
 }
 
-/* Central Lens (Focus Zone) */
+/* Central Lens */
 .focus-lens {
     position: absolute;
     top: 50%;
     left: 0;
     width: 100%;
-    height: 60px;
+    height: var(--item-height);
     transform: translateY(-50%);
     border-top: 1px solid var(--lens-border);
     border-bottom: 1px solid var(--lens-border);
     pointer-events: none;
-    z-index: 5;
-    background: linear-gradient(to bottom, rgba(128,128,128,0.05), transparent, rgba(128,128,128,0.05));
+    z-index: 10;
 }
 
 /* Infinite Wheel */
@@ -79,33 +94,25 @@ button {
     margin: 0;
     width: 100%;
     height: 100%;
-    overflow-y: auto;
+    overflow-y: scroll;
     scroll-snap-type: y mandatory;
-    /* Hide scrollbar */
+    scroll-behavior: smooth; /* Scroll plus doux */
     scrollbar-width: none; 
     -ms-overflow-style: none;
 }
 .wheel::-webkit-scrollbar { display: none; }
 
 .wheel li {
-    height: 60px;
+    height: var(--item-height);
     display: flex;
     justify-content: center;
     align-items: center;
-    font-size: 1.8rem;
+    font-size: 1.5rem;
     font-weight: 500;
     scroll-snap-align: center;
-    opacity: 0.4;
-    transform: scale(0.9);
-    transition: opacity 0.2s, transform 0.2s;
     text-transform: uppercase;
-}
-
-/* Active item effect logic is handled in JS via IntersectionObserver or Scroll Loop */
-.wheel li.active {
-    opacity: 1;
-    transform: scale(1.2);
-    font-weight: 700;
+    /* Optimisation rendu */
+    will-change: transform, opacity;
 }
 
 /* Hidden Triggers */
@@ -114,8 +121,7 @@ button {
     bottom: 0;
     height: 80px;
     width: 33%;
-    z-index: 20;
-    /* background: rgba(255,0,0,0.1); Debug only */
+    z-index: 50;
 }
 .trigger-zone.left { left: 0; }
 .trigger-zone.center { left: 33%; }
@@ -125,11 +131,12 @@ button {
 .modal-overlay {
     position: absolute;
     top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0,0,0,0.5);
-    z-index: 100;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(3px);
+    z-index: 200;
     display: flex;
     justify-content: center;
-    align-items: flex-end; /* Sheet style */
+    align-items: flex-end;
 }
 .hidden { display: none !important; }
 
@@ -137,10 +144,11 @@ button {
     background: var(--modal-bg);
     width: 90%;
     max-width: 400px;
-    padding: 20px;
+    padding: 25px;
+    padding-bottom: 40px;
     border-radius: 20px 20px 0 0;
-    box-shadow: 0 -5px 20px rgba(0,0,0,0.3);
-    animation: slideUp 0.3s ease-out;
+    box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
+    animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes slideUp {
@@ -148,72 +156,46 @@ button {
     to { transform: translateY(0); }
 }
 
-h2 { margin-top: 0; text-align: center; font-size: 1.2rem; margin-bottom: 20px; }
+h2 { margin-top: 0; text-align: center; font-size: 1.1rem; letter-spacing: 1px; margin-bottom: 20px; opacity: 0.8; }
 
-.input-group { margin-bottom: 15px; }
-.input-group label { display: block; font-size: 0.8rem; margin-bottom: 5px; opacity: 0.7; }
+.input-group { margin-bottom: 20px; }
+.input-group label { display: block; font-size: 0.8rem; margin-bottom: 8px; opacity: 0.6; text-transform: uppercase; }
 input[type="text"] {
     width: 100%;
-    padding: 10px;
-    border-radius: 8px;
+    padding: 12px;
+    border-radius: 10px;
     border: 1px solid var(--lens-border);
     background: var(--bg-color);
     color: var(--text-color);
     font-size: 1.2rem;
     text-transform: uppercase;
     box-sizing: border-box;
+    outline: none;
 }
+input[type="text"]:focus { border-color: var(--accent); }
 
-.radio-group {
-    display: flex;
-    justify-content: space-between;
-}
+.radio-group { display: flex; justify-content: space-between; gap: 5px; }
 .radio-btn {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: var(--bg-color);
+    flex: 1;
+    height: 45px;
+    border-radius: 8px;
+    background: rgba(128,128,128,0.1);
     display: flex;
     justify-content: center;
     align-items: center;
-    border: 1px solid var(--lens-border);
+    font-weight: bold;
     cursor: pointer;
+    transition: background 0.2s;
 }
 .radio-btn.selected {
     background: var(--accent);
     color: white;
-    border-color: var(--accent);
 }
 
-.action-btn {
-    width: 100%;
-    background: var(--accent);
-    color: white;
-    padding: 15px;
-    border-radius: 12px;
-    font-weight: bold;
-    margin-top: 10px;
-}
-.danger-btn {
-    width: 100%;
-    background: var(--danger);
-    color: white;
-    padding: 15px;
-    border-radius: 12px;
-    font-weight: bold;
-}
+.action-btn { width: 100%; background: var(--accent); color: white; padding: 16px; border-radius: 12px; font-weight: bold; border: none; font-size: 1rem; margin-top: 10px; }
+.danger-btn { width: 100%; background: var(--danger); color: white; padding: 16px; border-radius: 12px; font-weight: bold; border: none; font-size: 1rem; }
 
-/* History List specific */
-#history-list {
-    list-style: none;
-    padding: 0;
-    max-height: 200px;
-    overflow-y: auto;
-}
-#history-list li {
-    padding: 8px 0;
-    border-bottom: 1px solid var(--lens-border);
-    display: flex;
-    justify-content: space-between;
-}
-#history-list li.forced { color: #34c759; }
+/* History List */
+#history-list { list-style: none; padding: 0; max-height: 250px; overflow-y: auto; margin-bottom: 20px; }
+#history-list li { padding: 12px 0; border-bottom: 1px solid var(--lens-border); display: flex; justify-content: space-between; font-size: 1.1rem; }
+#history-list li.forced { color: var(--accent); }
