@@ -23,14 +23,16 @@ body {
     background-color: var(--bg-color);
     color: var(--text-color);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    overflow: hidden; /* Empêche le scroll de la page entière */
+    overflow: hidden;
     user-select: none;
     transition: background-color 0.3s, color 0.3s;
+    /* Empêche le rebond élastique sur tout le body (iOS) */
+    position: fixed; 
 }
 
 /* UI Header FIXE */
 .header {
-    position: fixed; /* Fixé en haut */
+    position: fixed;
     top: 0;
     left: 0;
     width: 100%;
@@ -40,14 +42,14 @@ body {
     align-items: center;
     padding: 0 20px;
     box-sizing: border-box;
-    z-index: 100; /* Au dessus de la liste */
+    z-index: 50; /* Au dessus de la liste, mais SOUS les triggers */
     background: linear-gradient(to bottom, var(--bg-color) 0%, transparent 100%);
-    pointer-events: none; /* Laisse passer les clics si on ne touche pas les boutons */
+    pointer-events: none;
 }
 
 .header button {
-    pointer-events: auto; /* Réactive les clics sur les boutons */
-    background: rgba(128, 128, 128, 0.1);
+    pointer-events: auto;
+    background: rgba(128, 128, 128, 0.15);
     backdrop-filter: blur(10px);
     border-radius: 20px;
     border: none;
@@ -68,9 +70,9 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    /* Masque d'opacité haut/bas pour effet 3D */
-    mask-image: linear-gradient(to bottom, transparent, black 40%, black 60%, transparent);
-    -webkit-mask-image: linear-gradient(to bottom, transparent, black 40%, black 60%, transparent);
+    /* Masque progressif pour effet 3D */
+    mask-image: linear-gradient(to bottom, transparent 0%, black 40%, black 60%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 40%, black 60%, transparent 100%);
 }
 
 /* Central Lens */
@@ -95,10 +97,15 @@ body {
     width: 100%;
     height: 100%;
     overflow-y: scroll;
-    scroll-snap-type: y mandatory;
-    scroll-behavior: smooth; /* Scroll plus doux */
+    /* Mandatory est bien pour le snap, mais peut être saccadé si la liste est trop lourde */
+    scroll-snap-type: y mandatory; 
+    /* Scroll plus naturel sur iOS */
+    -webkit-overflow-scrolling: touch;
     scrollbar-width: none; 
     -ms-overflow-style: none;
+    /* Padding géant pour centrer le premier/dernier élément sans JS complexe */
+    padding-top: calc(50vh - 30px);
+    padding-bottom: calc(50vh - 30px);
 }
 .wheel::-webkit-scrollbar { display: none; }
 
@@ -111,17 +118,24 @@ body {
     font-weight: 500;
     scroll-snap-align: center;
     text-transform: uppercase;
-    /* Optimisation rendu */
+    /* Optimisation GPU critique pour la fluidité */
+    transform: translateZ(0); 
     will-change: transform, opacity;
 }
 
-/* Hidden Triggers */
+/* ZONES CACHÉES (TRIGGERS) 
+   Correction: Z-Index très haut pour capturer le clic
+*/
 .trigger-zone {
     position: absolute;
     bottom: 0;
-    height: 80px;
+    height: 120px; /* Zone un peu plus grande pour faciliter le clic */
     width: 33%;
-    z-index: 50;
+    z-index: 9999; /* AU DESSUS DE TOUT */
+    /* background: rgba(255,0,0,0.2);  Décommenter pour tester les zones */
+    cursor: pointer;
+    /* Permet au scroll de passer à travers SI on glisse, mais capture le clic */
+    touch-action: pan-y; 
 }
 .trigger-zone.left { left: 0; }
 .trigger-zone.center { left: 33%; }
@@ -129,23 +143,28 @@ body {
 
 /* Modals */
 .modal-overlay {
-    position: absolute;
+    position: fixed; /* Fixed pour couvrir tout l'écran surement */
     top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0,0,0,0.6);
-    backdrop-filter: blur(3px);
-    z-index: 200;
+    background: rgba(0,0,0,0.8);
+    backdrop-filter: blur(5px);
+    z-index: 10000; /* Au dessus des triggers */
     display: flex;
     justify-content: center;
     align-items: flex-end;
+    opacity: 1;
+    transition: opacity 0.3s;
 }
-.hidden { display: none !important; }
+.hidden { 
+    display: none !important; 
+    pointer-events: none;
+    opacity: 0;
+}
 
 .modal-content {
     background: var(--modal-bg);
-    width: 90%;
-    max-width: 400px;
-    padding: 25px;
-    padding-bottom: 40px;
+    width: 100%;
+    max-width: 500px;
+    padding: 30px 20px 50px 20px; /* Padding bas pour iPhone X */
     border-radius: 20px 20px 0 0;
     box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
     animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
@@ -162,8 +181,8 @@ h2 { margin-top: 0; text-align: center; font-size: 1.1rem; letter-spacing: 1px; 
 .input-group label { display: block; font-size: 0.8rem; margin-bottom: 8px; opacity: 0.6; text-transform: uppercase; }
 input[type="text"] {
     width: 100%;
-    padding: 12px;
-    border-radius: 10px;
+    padding: 15px;
+    border-radius: 12px;
     border: 1px solid var(--lens-border);
     background: var(--bg-color);
     color: var(--text-color);
@@ -171,14 +190,15 @@ input[type="text"] {
     text-transform: uppercase;
     box-sizing: border-box;
     outline: none;
+    -webkit-appearance: none; /* iOS fix */
 }
 input[type="text"]:focus { border-color: var(--accent); }
 
-.radio-group { display: flex; justify-content: space-between; gap: 5px; }
+.radio-group { display: flex; justify-content: space-between; gap: 8px; }
 .radio-btn {
     flex: 1;
-    height: 45px;
-    border-radius: 8px;
+    height: 50px;
+    border-radius: 10px;
     background: rgba(128,128,128,0.1);
     display: flex;
     justify-content: center;
@@ -192,10 +212,10 @@ input[type="text"]:focus { border-color: var(--accent); }
     color: white;
 }
 
-.action-btn { width: 100%; background: var(--accent); color: white; padding: 16px; border-radius: 12px; font-weight: bold; border: none; font-size: 1rem; margin-top: 10px; }
-.danger-btn { width: 100%; background: var(--danger); color: white; padding: 16px; border-radius: 12px; font-weight: bold; border: none; font-size: 1rem; }
+.action-btn { width: 100%; background: var(--accent); color: white; padding: 18px; border-radius: 14px; font-weight: bold; border: none; font-size: 1rem; margin-top: 10px; cursor: pointer; }
+.danger-btn { width: 100%; background: var(--danger); color: white; padding: 18px; border-radius: 14px; font-weight: bold; border: none; font-size: 1rem; cursor: pointer; }
 
 /* History List */
-#history-list { list-style: none; padding: 0; max-height: 250px; overflow-y: auto; margin-bottom: 20px; }
-#history-list li { padding: 12px 0; border-bottom: 1px solid var(--lens-border); display: flex; justify-content: space-between; font-size: 1.1rem; }
+#history-list { list-style: none; padding: 0; max-height: 300px; overflow-y: auto; margin-bottom: 20px; }
+#history-list li { padding: 15px 0; border-bottom: 1px solid var(--lens-border); display: flex; justify-content: space-between; font-size: 1.2rem; }
 #history-list li.forced { color: var(--accent); }

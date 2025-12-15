@@ -1,8 +1,17 @@
 // --- CONFIGURATION INITIALE ---
 const ITEM_HEIGHT = 60; 
-const BUFFER_SIZE = 1000; // Liste suffisamment longue
 let currentLanguage = "FR";
-let isDarkMode = true; // Sombre par défaut
+let isDarkMode = true;
+
+// LISTE ANGLAISE DE SECOURS (Pour affichage propre sans "THE")
+const WORDS_EN = [
+    "APPLE", "BRIDGE", "CLOUD", "DREAM", "EAGLE", "FIRE", "GHOST", "HOUSE", 
+    "ISLAND", "JUNGLE", "KNIFE", "LEMON", "MAGIC", "NIGHT", "OCEAN", "PIANO", 
+    "QUEEN", "RIVER", "SNAKE", "TIGER", "UMBRELLA", "VOICE", "WATER", "XRAY", 
+    "YELLOW", "ZEBRA", "BOOK", "CHAIR", "TABLE", "PHONE", "MUSIC", "LIGHT",
+    "SHADOW", "STORM", "WINTER", "SUMMER", "SPRING", "AUTUMN", "PAPER", "PEN",
+    "GLASS", "DOOR", "WINDOW", "FLOOR", "ROOF", "GARDEN", "STREET", "CITY"
+];
 
 // --- ETAT DE L'APPLICATION ---
 const APP_STATE = {
@@ -12,7 +21,8 @@ const APP_STATE = {
     history: [],
     isScrolling: false,
     scrollTimeout: null,
-    lastScrollTop: 0
+    // Pour l'optimisation du scroll (Debounce visual updates)
+    ticking: false 
 };
 
 // Références DOM
@@ -24,30 +34,28 @@ const themeBtn = document.getElementById('theme-toggle');
 function init() {
     setupTriggers();
     setupModals();
-    setupWheelLogic();
     
     // Génération initiale
     renderWheel();
     
-    // Centrage initial (loin dans la liste pour effet infini)
-    setTimeout(() => {
-        wheel.scrollTop = ITEM_HEIGHT * 500; 
-    }, 50);
+    // Centrage initial
+    // On attend un tick pour que le DOM soit prêt
+    requestAnimationFrame(() => {
+        // Scroll initial au milieu de la liste virtuelle
+        wheel.scrollTop = ITEM_HEIGHT * 50; 
+        updateVisuals(); // Force le premier rendu visuel
+    });
+
+    setupScrollLogic();
 }
 
 // --- GESTION DES DONNÉES & LANGUES ---
 function getWordList() {
-    // Si data.js ne contient que du français, on simule l'anglais pour la démo
-    // ou on utilise une propriété data.js si elle existe.
     if (currentLanguage === "FR") {
-        return window.WORDS || ["ERREUR"];
+        return window.WORDS || ["ERREUR_DATA"];
     } else {
-        // Simulation d'une liste anglaise si window.WORDS_EN n'existe pas
-        if (window.WORDS_EN) return window.WORDS_EN;
-        
-        // Fallback: On prend les mots FR et on ajoute "THE" devant pour simuler
-        // Idéalement, ajoutez une liste WORDS_EN dans votre data.js
-        return (window.WORDS || []).map(w => "THE " + w); 
+        // Utilisation de la liste propre définie en haut
+        return WORDS_EN; 
     }
 }
 
@@ -55,152 +63,166 @@ function toggleLanguage() {
     currentLanguage = currentLanguage === "FR" ? "EN" : "FR";
     langBtn.innerText = currentLanguage;
     
-    // Sauvegarder la position relative pour ne pas perdre le fil visuel
-    const currentIndex = Math.round(wheel.scrollTop / ITEM_HEIGHT);
+    // On garde la position relative
+    const currentScroll = wheel.scrollTop;
     
     renderWheel();
     
-    // Restaurer position
-    wheel.scrollTop = currentIndex * ITEM_HEIGHT;
+    // On remet le scroll
+    wheel.scrollTop = currentScroll;
 }
 
 // --- RENDU DE LA ROUE ---
 function renderWheel() {
     const words = getWordList();
-    if(words.length === 0) return;
+    if(!words || words.length === 0) return;
 
-    // On génère une très longue liste HTML (Virtual DOM light)
-    // 2000 items suffisent pour une session
+    // On répète la liste pour créer l'illusion d'infini
+    // 200 répétitions de la liste de base
     let html = "";
-    for(let i=0; i<2000; i++) {
-        const word = words[i % words.length];
-        html += `<li>${word}</li>`;
+    const repeatCount = 200; 
+    
+    for(let i=0; i<repeatCount; i++) {
+        // On mélange un peu l'ordre visuel global ou on répète juste la liste
+        // Pour la performance, concaténation de string simple
+        for(let w of words) {
+            html += `<li>${w}</li>`;
+        }
     }
     wheel.innerHTML = html;
 }
 
-// --- COEUR DU SYSTÈME : SCROLL & ANTICIPATION ---
+// --- COEUR DU SYSTÈME : SCROLL OPTIMISÉ ---
 
-function setupWheelLogic() {
+function setupScrollLogic() {
     
-    // 1. Détection Visuelle (Opacité/Taille)
+    // 1. OPTIMISATION DU RENDU (requestAnimationFrame)
     wheel.addEventListener('scroll', () => {
-        const center = wheel.scrollTop + (wheel.clientHeight / 2);
-        const elements = wheel.children;
-        
-        // Optimisation : on ne boucle que sur les éléments visibles (+/- marge)
-        const startIndex = Math.floor(wheel.scrollTop / ITEM_HEIGHT);
-        const endIndex = startIndex + Math.ceil(wheel.clientHeight / ITEM_HEIGHT) + 1;
-
-        for (let i = startIndex; i <= endIndex; i++) {
-            const el = elements[i];
-            if(!el) continue;
-
-            const elCenter = el.offsetTop + (el.clientHeight / 2);
-            const dist = Math.abs(center - elCenter);
-            
-            // Effet "Fish Eye" / Loupe
-            if (dist < ITEM_HEIGHT) {
-                // Centre exact
-                const ratio = 1 - (dist / ITEM_HEIGHT);
-                el.style.opacity = 0.5 + (ratio * 0.5); // 0.5 -> 1.0
-                el.style.transform = `scale(${1 + (ratio * 0.2)})`; // 1.0 -> 1.2
-                el.style.fontWeight = '700';
-            } else {
-                // En dehors
-                el.style.opacity = 0.3;
-                el.style.transform = "scale(0.95)";
-                el.style.fontWeight = '400';
-            }
+        if (!APP_STATE.ticking) {
+            window.requestAnimationFrame(() => {
+                updateVisuals();
+                APP_STATE.ticking = false;
+            });
+            APP_STATE.ticking = true;
         }
-    });
-
-    // 2. Gestion de l'arrêt (Snap logic)
-    wheel.addEventListener('scroll', handleScrollEvents);
-}
-
-function handleScrollEvents() {
-    clearTimeout(APP_STATE.scrollTimeout);
-    APP_STATE.isScrolling = true;
-    
-    // Détection de la fin du scroll
-    APP_STATE.scrollTimeout = setTimeout(() => {
-        APP_STATE.isScrolling = false;
-        snapAndValidate();
-    }, 100); // Détection rapide
-}
-
-// Cette fonction aligne la roue ET gère la logique de magie
-function snapAndValidate() {
-    const currentScroll = wheel.scrollTop;
-    const rawIndex = Math.round(currentScroll / ITEM_HEIGHT);
-    const targetScroll = rawIndex * ITEM_HEIGHT;
-
-    // 1. ANTICIPATION (Magie)
-    // On modifie le mot AVANT que le scroll ne soit visuellement terminé/fixé
-    applyMagicLogic(rawIndex);
-
-    // 2. SNAP PHYSIQUE
-    wheel.scrollTo({
-        top: targetScroll,
-        behavior: 'smooth'
-    });
-
-    // 3. VALIDATION FINALE (Après le snap)
-    setTimeout(() => {
-        // On récupère l'élément qui est physiquement au centre maintenant
-        const elements = wheel.children;
-        // L'index visuel au centre dépend de la hauteur du conteneur
-        // Container ~5 items de haut. Le centre est à index + 2 environ.
-        const centerOffset = Math.floor((wheel.clientHeight / ITEM_HEIGHT) / 2);
-        const finalIndex = Math.round(wheel.scrollTop / ITEM_HEIGHT) + centerOffset;
         
-        const selectedElement = elements[finalIndex];
+        // Gestion de l'état "en scroll"
+        clearTimeout(APP_STATE.scrollTimeout);
+        APP_STATE.isScrolling = true;
+        
+        // Détection fin de scroll (Snap)
+        APP_STATE.scrollTimeout = setTimeout(() => {
+            APP_STATE.isScrolling = false;
+            snapAndValidate();
+        }, 80); // 80ms sans mouvement = arrêt
+    }, { passive: true }); // Passive true améliore les perfs sur mobile
+}
+
+function updateVisuals() {
+    const center = wheel.scrollTop + (wheel.clientHeight / 2);
+    // On ne sélectionne que les éléments visibles pour iterer (grossièrement)
+    // Astuce perf: on n'interroge pas le DOM pour TOUS les éléments.
+    // On calcule l'index théorique visible.
+    
+    const elements = wheel.children;
+    const totalElements = elements.length;
+    
+    // Index approximatif au centre
+    const centerIndex = Math.floor(center / ITEM_HEIGHT);
+    
+    // On boucle seulement sur les voisins (+/- 5 items)
+    const range = 6;
+    const start = Math.max(0, centerIndex - range);
+    const end = Math.min(totalElements - 1, centerIndex + range);
+
+    for (let i = start; i <= end; i++) {
+        const el = elements[i];
+        const elCenter = el.offsetTop + (el.clientHeight / 2);
+        const dist = Math.abs(center - elCenter);
+        
+        // Formule mathématique pour l'effet loupe
+        if (dist < ITEM_HEIGHT) {
+            const ratio = 1 - (dist / ITEM_HEIGHT);
+            // Easing pour rendre ça moins linéaire
+            const smoothRatio = ratio * ratio; 
+            el.style.opacity = 0.4 + (smoothRatio * 0.6); // 0.4 -> 1.0
+            el.style.transform = `scale(${0.9 + (smoothRatio * 0.3)}) translateZ(0)`; // 0.9 -> 1.2
+            el.style.color = "var(--text-color)";
+        } else {
+            el.style.opacity = 0.3;
+            el.style.transform = "scale(0.9) translateZ(0)";
+            el.style.color = "var(--text-color)";
+        }
+    }
+}
+
+function snapAndValidate() {
+    const itemH = ITEM_HEIGHT;
+    const currentScroll = wheel.scrollTop;
+    
+    // Calcul de l'index le plus proche
+    const targetIndex = Math.round(currentScroll / itemH);
+    const targetScroll = targetIndex * itemH;
+
+    // 1. ANTICIPATION MAGIQUE
+    // On modifie le mot AVANT le snap visuel
+    applyMagicLogic(targetIndex);
+
+    // 2. SNAP DOUX
+    // Si on est déjà très proche (<2px), pas besoin de scroller (évite micro-saut)
+    if (Math.abs(currentScroll - targetScroll) > 1) {
+        wheel.scrollTo({
+            top: targetScroll,
+            behavior: 'smooth'
+        });
+    }
+
+    // 3. VALIDATION
+    // On attend la fin du smooth scroll (environ 300ms)
+    setTimeout(() => {
+        // Calcul de l'élément réellement au centre (ajusté avec le padding)
+        // Le padding CSS est de 50vh - 30px.
+        // Donc le scrollTop 0 met le premier élément au centre.
+        // targetIndex correspond directement à l'élément `li` indexé.
+        const elements = wheel.children;
+        const selectedElement = elements[targetIndex];
         
         if(selectedElement) {
-            // Envoi Firebase et Historique
             const word = selectedElement.innerText;
-            // On vérifie si c'était un mot forcé pour le log
-            const type = (APP_STATE.lastMagicApplied) ? APP_STATE.lastMagicApplied : 'NORMAL';
+            const type = APP_STATE.lastMagicApplied || 'NORMAL';
             
-            // Éviter les doublons de logs si on bouge à peine
             if(APP_STATE.lastLoggedWord !== word) {
                 saveToHistory(word, type);
                 sendToFirebase(word, type);
                 APP_STATE.lastLoggedWord = word;
-                APP_STATE.lastMagicApplied = null; // Reset flag
+                APP_STATE.lastMagicApplied = null;
             }
         }
-    }, 350); // Attendre que le smooth scroll finisse
+    }, 350);
 }
 
-// Fonction qui remplace le mot à la volée
-function applyMagicLogic(scrollIndex) {
-    // L'élément qui SERA au centre après le snap
-    const centerOffset = Math.floor((wheel.clientHeight / ITEM_HEIGHT) / 2);
-    const targetIndex = scrollIndex + centerOffset;
-    const elementToChange = wheel.children[targetIndex];
+function applyMagicLogic(targetIndex) {
+    // targetIndex est l'index du LI qui sera au centre
+    const elements = wheel.children;
+    // Sécurité débordement
+    if (targetIndex < 0 || targetIndex >= elements.length) return;
+    
+    const elementToChange = elements[targetIndex];
 
-    if (!elementToChange) return;
-
-    // --- LOGIQUE FORCE ---
+    // LOGIQUE FORCE
     if (APP_STATE.mode === 'FORCE') {
         APP_STATE.forceConfig.count--;
         
         if (APP_STATE.forceConfig.count <= 0) {
-            // C'est le moment ! On remplace le texte discrètement
-            // Le mot n'est pas encore parfaitement au centre, c'est le moment idéal
             if (elementToChange.innerText !== APP_STATE.forceConfig.target) {
                 elementToChange.innerText = APP_STATE.forceConfig.target;
             }
             APP_STATE.lastMagicApplied = 'FORCE';
-            
-            // Reset du mode après succès
             APP_STATE.mode = 'NORMAL';
             APP_STATE.forceConfig.count = APP_STATE.forceConfig.initialCount; 
         }
     } 
-    // --- LOGIQUE VRTX ---
+    // LOGIQUE VRTX
     else if (APP_STATE.mode === 'VRTX') {
         const sourceWord = APP_STATE.vrtxConfig.word;
         const targetRank = APP_STATE.vrtxConfig.rank; 
@@ -209,13 +231,11 @@ function applyMagicLogic(scrollIndex) {
         if (charIndex < sourceWord.length) {
             const targetLetter = sourceWord[charIndex];
             
-            // Trouver un mot valide dans data.js
             let forcedWord = "ERREUR";
             
-            // Vérifions si WORDS_BY_RANK existe (data.js)
+            // Recherche du mot
             if (window.WORDS_BY_RANK && window.WORDS_BY_RANK[targetRank] && window.WORDS_BY_RANK[targetRank][targetLetter]) {
                 const candidates = window.WORDS_BY_RANK[targetRank][targetLetter];
-                // Filtrer pour ne pas tomber sur le mot source lui-même (trop évident)
                 const filtered = candidates.filter(w => w !== sourceWord);
                 if (filtered.length > 0) {
                     forcedWord = filtered[Math.floor(Math.random() * filtered.length)];
@@ -223,22 +243,29 @@ function applyMagicLogic(scrollIndex) {
                     forcedWord = candidates[0];
                 }
             } else {
-                // Fallback si pas de mot trouvé (pour éviter le crash)
-                forcedWord = "X" + targetLetter + "X"; 
+                // Fallback "intelligent" si pas de dico chargé: on prend un mot au pif et on hack l'affichage?
+                // Non, on affiche juste un mot qui contient la lettre si possible, sinon fallback
+                forcedWord = findWordWithLetterAt(targetLetter, targetRank);
             }
 
-            // Injection
             elementToChange.innerText = forcedWord;
-            
             APP_STATE.lastMagicApplied = 'VRTX';
             APP_STATE.vrtxConfig.index++;
 
-            // Fin du mot ?
             if (APP_STATE.vrtxConfig.index >= sourceWord.length) {
                 APP_STATE.mode = 'NORMAL';
             }
         }
     }
+}
+
+// Fonction de secours si le dictionnaire complexe n'est pas là
+function findWordWithLetterAt(letter, rank) {
+    // Essaye de trouver dans la liste courante un mot qui matche
+    const list = getWordList();
+    const matches = list.filter(w => w.length >= rank && w[rank-1] === letter);
+    if(matches.length > 0) return matches[Math.floor(Math.random()*matches.length)];
+    return "X" + letter + "X"; // Erreur visuelle mais fonctionnelle
 }
 
 
@@ -254,7 +281,7 @@ function setupTriggers() {
 
     langBtn.onclick = toggleLanguage;
 
-    // Zones Secrètes
+    // Zones Secrètes - LOGIQUE CORRIGÉE POUR MOBILE
     const zones = ['left', 'center', 'right'];
     const actions = {
         'left': () => openModal('force'),
@@ -268,36 +295,38 @@ function setupTriggers() {
         let clickTimer = null;
         let longPressTimer = null;
 
-        // Triple Click
-        el.addEventListener('click', () => {
+        // Gestionnaire unifié pour Click (Desktop) et Touch (Mobile)
+        // On utilise 'pointerdown' si disponible, sinon fallback
+        
+        el.addEventListener('click', (e) => {
+            // Triple click logic
             clickCount++;
             clearTimeout(clickTimer);
-            clickTimer = setTimeout(() => clickCount = 0, 400);
+            clickTimer = setTimeout(() => clickCount = 0, 500); // 500ms délai
+            
             if (clickCount === 3) {
-                actions[zone]();
                 clickCount = 0;
+                actions[zone]();
             }
         });
 
-        // Long Press (Mobile)
-        const startPress = (e) => {
-            // e.preventDefault(); // Optionnel, peut bloquer le scroll si mal placé
+        // Long Press Logic
+        const start = () => {
             longPressTimer = setTimeout(() => {
                 actions[zone]();
-                // Vibration feedback si supporté
                 if(navigator.vibrate) navigator.vibrate(50);
-            }, 1000); // 1 seconde
+            }, 1000);
         };
-        const endPress = () => clearTimeout(longPressTimer);
+        const cancel = () => clearTimeout(longPressTimer);
 
-        el.addEventListener('mousedown', startPress);
-        el.addEventListener('mouseup', endPress);
-        el.addEventListener('mouseleave', endPress);
-        el.addEventListener('touchstart', startPress, {passive: true});
-        el.addEventListener('touchend', endPress);
+        el.addEventListener('mousedown', start);
+        el.addEventListener('mouseup', cancel);
+        el.addEventListener('mouseleave', cancel);
+        el.addEventListener('touchstart', start, { passive: true });
+        el.addEventListener('touchend', cancel);
     });
 
-    // Fermeture Modale
+    // Close Modal
     document.getElementById('modal-overlay').addEventListener('click', (e) => {
         if (e.target.id === 'modal-overlay') closeModals();
     });
@@ -308,9 +337,11 @@ function openModal(type) {
     document.querySelectorAll('.modal-content').forEach(el => el.classList.add('hidden'));
     document.getElementById(`modal-${type}`).classList.remove('hidden');
     
-    // Focus auto sur l'input si présent
-    const input = document.querySelector(`#modal-${type} input`);
-    if(input) input.focus();
+    // Focus input
+    setTimeout(() => {
+        const input = document.querySelector(`#modal-${type} input`);
+        if(input) input.focus();
+    }, 100);
 
     if(type === 'history') updateHistoryUI();
 }
@@ -320,7 +351,7 @@ function closeModals() {
 }
 
 function setupModals() {
-    // FORCE MODE UI
+    // Génération boutons radio FORCE
     const forceGroup = document.getElementById('force-count-group');
     createRadioButtons(forceGroup, 6, (val) => APP_STATE.forceConfig.initialCount = val);
 
@@ -331,11 +362,10 @@ function setupModals() {
             APP_STATE.forceConfig.target = val;
             APP_STATE.forceConfig.count = APP_STATE.forceConfig.initialCount;
             closeModals();
-            // Pas d'alerte, c'est secret !
         }
     });
 
-    // VRTX MODE UI
+    // Génération boutons radio VRTX
     const vrtxInput = document.getElementById('vrtx-word-input');
     vrtxInput.addEventListener('input', (e) => {
         document.getElementById('vrtx-counter').innerText = `(${e.target.value.length})`;
@@ -354,7 +384,6 @@ function setupModals() {
         }
     });
 
-    // HISTORY UI
     document.getElementById('btn-clear-history').addEventListener('click', () => {
         APP_STATE.history = [];
         updateHistoryUI();
@@ -381,17 +410,14 @@ function updateHistoryUI() {
     list.innerHTML = '';
     APP_STATE.history.slice().reverse().forEach(item => {
         const li = document.createElement('li');
-        li.innerText = `${item.word}`;
-        if(item.type !== 'NORMAL') {
-            li.classList.add('forced');
-            li.innerHTML += ` <small>(${item.type})</small>`;
-        }
+        li.innerText = item.word;
+        if(item.type !== 'NORMAL') li.classList.add('forced');
         list.appendChild(li);
     });
 }
 
 function saveToHistory(word, type) {
-    APP_STATE.history.push({ word, type, time: new Date() });
+    APP_STATE.history.push({ word, type });
     if(APP_STATE.history.length > 20) APP_STATE.history.shift();
 }
 
@@ -404,8 +430,7 @@ async function sendToFirebase(word, type) {
             type: type,
             timestamp: window.serverTimestamp()
         });
-    } catch (e) { console.error("Firebase Error", e); }
+    } catch (e) { console.error(e); }
 }
 
-// Start
 init();
