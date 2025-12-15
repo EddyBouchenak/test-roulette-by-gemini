@@ -1,48 +1,77 @@
 // --- CONFIGURATION INITIALE ---
-const ITEM_HEIGHT = 60; // Hauteur d'une ligne en px
-const BUFFER_SIZE = 50; // Nombre de mots à rendre au dessus/dessous pour l'illusion infinie
+const ITEM_HEIGHT = 60; 
+const BUFFER_SIZE = 1000; // Liste suffisamment longue
 let currentLanguage = "FR";
-let isDarkMode = false;
+let isDarkMode = true; // Sombre par défaut
 
 // --- ETAT DE L'APPLICATION ---
 const APP_STATE = {
     mode: "NORMAL", // NORMAL, FORCE, VRTX
     forceConfig: { target: "", count: 0, initialCount: 0 },
     vrtxConfig: { word: "", rank: 0, index: 0 },
-    history: [], // { word: "MOT", type: "NORMAL"|"FORCE"|"VRTX" }
+    history: [],
     isScrolling: false,
-    scrollTimeout: null
+    scrollTimeout: null,
+    lastScrollTop: 0
 };
 
-// Référence au DOM
+// Références DOM
 const wheel = document.getElementById('wheel');
-const focusLens = document.querySelector('.focus-lens');
+const langBtn = document.getElementById('lang-toggle');
+const themeBtn = document.getElementById('theme-toggle');
 
 // --- INITIALISATION ---
-
 function init() {
     setupTriggers();
     setupModals();
-    setupWheel();
+    setupWheelLogic();
+    
+    // Génération initiale
     renderWheel();
     
-    // Centrer la roue au démarrage
+    // Centrage initial (loin dans la liste pour effet infini)
     setTimeout(() => {
-        wheel.scrollTop = ITEM_HEIGHT * 1000; // Aller loin pour l'effet infini
-    }, 100);
-
-    // Observer pour l'effet visuel (Opacité/Scale)
-    wheel.addEventListener('scroll', handleScroll);
+        wheel.scrollTop = ITEM_HEIGHT * 500; 
+    }, 50);
 }
 
-// --- LOGIQUE DE LA ROUE (INFINITE SCROLL & PHYSICS) ---
+// --- GESTION DES DONNÉES & LANGUES ---
+function getWordList() {
+    // Si data.js ne contient que du français, on simule l'anglais pour la démo
+    // ou on utilise une propriété data.js si elle existe.
+    if (currentLanguage === "FR") {
+        return window.WORDS || ["ERREUR"];
+    } else {
+        // Simulation d'une liste anglaise si window.WORDS_EN n'existe pas
+        if (window.WORDS_EN) return window.WORDS_EN;
+        
+        // Fallback: On prend les mots FR et on ajoute "THE" devant pour simuler
+        // Idéalement, ajoutez une liste WORDS_EN dans votre data.js
+        return (window.WORDS || []).map(w => "THE " + w); 
+    }
+}
 
+function toggleLanguage() {
+    currentLanguage = currentLanguage === "FR" ? "EN" : "FR";
+    langBtn.innerText = currentLanguage;
+    
+    // Sauvegarder la position relative pour ne pas perdre le fil visuel
+    const currentIndex = Math.round(wheel.scrollTop / ITEM_HEIGHT);
+    
+    renderWheel();
+    
+    // Restaurer position
+    wheel.scrollTop = currentIndex * ITEM_HEIGHT;
+}
+
+// --- RENDU DE LA ROUE ---
 function renderWheel() {
-    // Génère une longue liste pour simuler l'infini
-    // On utilise les mots de data.js
-    const words = window.WORDS || ["ERREUR", "DATA", "MANQUANT"];
+    const words = getWordList();
+    if(words.length === 0) return;
+
+    // On génère une très longue liste HTML (Virtual DOM light)
+    // 2000 items suffisent pour une session
     let html = "";
-    // On répète la liste X fois pour avoir de la marge
     for(let i=0; i<2000; i++) {
         const word = words[i % words.length];
         html += `<li>${word}</li>`;
@@ -50,165 +79,182 @@ function renderWheel() {
     wheel.innerHTML = html;
 }
 
-function handleScroll() {
+// --- COEUR DU SYSTÈME : SCROLL & ANTICIPATION ---
+
+function setupWheelLogic() {
+    
+    // 1. Détection Visuelle (Opacité/Taille)
+    wheel.addEventListener('scroll', () => {
+        const center = wheel.scrollTop + (wheel.clientHeight / 2);
+        const elements = wheel.children;
+        
+        // Optimisation : on ne boucle que sur les éléments visibles (+/- marge)
+        const startIndex = Math.floor(wheel.scrollTop / ITEM_HEIGHT);
+        const endIndex = startIndex + Math.ceil(wheel.clientHeight / ITEM_HEIGHT) + 1;
+
+        for (let i = startIndex; i <= endIndex; i++) {
+            const el = elements[i];
+            if(!el) continue;
+
+            const elCenter = el.offsetTop + (el.clientHeight / 2);
+            const dist = Math.abs(center - elCenter);
+            
+            // Effet "Fish Eye" / Loupe
+            if (dist < ITEM_HEIGHT) {
+                // Centre exact
+                const ratio = 1 - (dist / ITEM_HEIGHT);
+                el.style.opacity = 0.5 + (ratio * 0.5); // 0.5 -> 1.0
+                el.style.transform = `scale(${1 + (ratio * 0.2)})`; // 1.0 -> 1.2
+                el.style.fontWeight = '700';
+            } else {
+                // En dehors
+                el.style.opacity = 0.3;
+                el.style.transform = "scale(0.95)";
+                el.style.fontWeight = '400';
+            }
+        }
+    });
+
+    // 2. Gestion de l'arrêt (Snap logic)
+    wheel.addEventListener('scroll', handleScrollEvents);
+}
+
+function handleScrollEvents() {
     clearTimeout(APP_STATE.scrollTimeout);
     APP_STATE.isScrolling = true;
-
-    // Effet visuel immédiat (Centre Highlight)
-    updateVisuals();
-
-    // Détection de l'arrêt du scroll (Snap)
+    
+    // Détection de la fin du scroll
     APP_STATE.scrollTimeout = setTimeout(() => {
         APP_STATE.isScrolling = false;
-        snapToGrid();
-    }, 150); // Délai avant de considérer le scroll comme "fini"
+        snapAndValidate();
+    }, 100); // Détection rapide
 }
 
-function updateVisuals() {
-    const center = wheel.scrollTop + (wheel.clientHeight / 2);
-    const elements = wheel.children;
-    
-    for (let i = 0; i < elements.length; i++) {
-        const el = elements[i];
-        const elCenter = el.offsetTop + (el.clientHeight / 2);
-        const dist = Math.abs(center - elCenter);
-        
-        // Calcul effet distance
-        if (dist < ITEM_HEIGHT) {
-            el.style.opacity = 1 - (dist / ITEM_HEIGHT * 0.5); // 1.0 -> 0.5
-            el.style.transform = `scale(${1.2 - (dist / ITEM_HEIGHT * 0.3)})`;
-            el.classList.add('active');
-        } else if (dist < ITEM_HEIGHT * 3) {
-            el.style.opacity = 0.4 - ((dist - ITEM_HEIGHT) / (ITEM_HEIGHT * 2) * 0.3);
-            el.style.transform = "scale(0.9)";
-            el.classList.remove('active');
-        } else {
-            el.style.opacity = 0.1;
-            el.style.transform = "scale(0.8)";
-            el.classList.remove('active');
-        }
-    }
-}
-
-function snapToGrid() {
+// Cette fonction aligne la roue ET gère la logique de magie
+function snapAndValidate() {
     const currentScroll = wheel.scrollTop;
-    const index = Math.round(currentScroll / ITEM_HEIGHT);
-    const targetScroll = index * ITEM_HEIGHT;
-    
-    // Smooth scroll vers la position exacte
+    const rawIndex = Math.round(currentScroll / ITEM_HEIGHT);
+    const targetScroll = rawIndex * ITEM_HEIGHT;
+
+    // 1. ANTICIPATION (Magie)
+    // On modifie le mot AVANT que le scroll ne soit visuellement terminé/fixé
+    applyMagicLogic(rawIndex);
+
+    // 2. SNAP PHYSIQUE
     wheel.scrollTo({
         top: targetScroll,
         behavior: 'smooth'
     });
 
-    // Une fois stabilisé, on valide le mot
+    // 3. VALIDATION FINALE (Après le snap)
     setTimeout(() => {
-        const finalIndex = Math.round(wheel.scrollTop / ITEM_HEIGHT);
+        // On récupère l'élément qui est physiquement au centre maintenant
         const elements = wheel.children;
-        const selectedElement = elements[finalIndex + Math.floor(wheel.clientHeight/ITEM_HEIGHT/2)]; // Ajustement approximatif du centre
+        // L'index visuel au centre dépend de la hauteur du conteneur
+        // Container ~5 items de haut. Le centre est à index + 2 environ.
+        const centerOffset = Math.floor((wheel.clientHeight / ITEM_HEIGHT) / 2);
+        const finalIndex = Math.round(wheel.scrollTop / ITEM_HEIGHT) + centerOffset;
+        
+        const selectedElement = elements[finalIndex];
         
         if(selectedElement) {
+            // Envoi Firebase et Historique
             const word = selectedElement.innerText;
-            processResult(word, selectedElement);
+            // On vérifie si c'était un mot forcé pour le log
+            const type = (APP_STATE.lastMagicApplied) ? APP_STATE.lastMagicApplied : 'NORMAL';
+            
+            // Éviter les doublons de logs si on bouge à peine
+            if(APP_STATE.lastLoggedWord !== word) {
+                saveToHistory(word, type);
+                sendToFirebase(word, type);
+                APP_STATE.lastLoggedWord = word;
+                APP_STATE.lastMagicApplied = null; // Reset flag
+            }
         }
-    }, 300);
+    }, 350); // Attendre que le smooth scroll finisse
 }
 
-// --- CŒUR DU MENTALISME : INTERCEPTION DU RÉSULTAT ---
+// Fonction qui remplace le mot à la volée
+function applyMagicLogic(scrollIndex) {
+    // L'élément qui SERA au centre après le snap
+    const centerOffset = Math.floor((wheel.clientHeight / ITEM_HEIGHT) / 2);
+    const targetIndex = scrollIndex + centerOffset;
+    const elementToChange = wheel.children[targetIndex];
 
-// Cette fonction est appelée AVANT que le scroll ne s'arrête complètement
-// pour injecter le mot forcé si nécessaire.
-// Note: Pour une fiabilité web, on triche : on détecte le ralentissement 
-// et on remplace le texte de l'élément qui VA atterrir au centre.
+    if (!elementToChange) return;
 
-wheel.addEventListener('scroll', () => {
-    // Logique de modification à la volée pendant le scroll
-    if (APP_STATE.mode === 'NORMAL') return;
-
-    // Si on est en mode FORCE ou VRTX, on surveille la vitesse
-    // Si la vitesse est basse (fin de scroll), on prépare l'injection
-    // Simplification pour ce prototype : on compte les "arrêts" (snaps).
-});
-
-function processResult(word, elementDom) {
-    // C'est ici qu'on gère le compteur de scrolls
-    
+    // --- LOGIQUE FORCE ---
     if (APP_STATE.mode === 'FORCE') {
         APP_STATE.forceConfig.count--;
-        console.log("Force Count:", APP_STATE.forceConfig.count);
-
+        
         if (APP_STATE.forceConfig.count <= 0) {
-            // C'EST LE MOMENT !
-            // On remplace le mot visuellement s'il n'est pas bon
-            if (elementDom.innerText !== APP_STATE.forceConfig.target) {
-                elementDom.innerText = APP_STATE.forceConfig.target;
-                // Petit effet visuel pour masquer le changement si l'oeil est vif
-                elementDom.style.transition = "none";
-                elementDom.style.color = "var(--text-color)"; // Refresh
+            // C'est le moment ! On remplace le texte discrètement
+            // Le mot n'est pas encore parfaitement au centre, c'est le moment idéal
+            if (elementToChange.innerText !== APP_STATE.forceConfig.target) {
+                elementToChange.innerText = APP_STATE.forceConfig.target;
             }
+            APP_STATE.lastMagicApplied = 'FORCE';
             
-            saveToHistory(APP_STATE.forceConfig.target, 'FORCE');
-            sendToFirebase(APP_STATE.forceConfig.target, 'FORCE');
-            
-            // Reset mode
+            // Reset du mode après succès
             APP_STATE.mode = 'NORMAL';
-            APP_STATE.forceConfig.count = APP_STATE.forceConfig.initialCount; // Ou reset total ? "L'appli calcule...". Reset total plus logique.
-        } else {
-             // Scroll "dummy", on ne fait rien, c'est un mot aléatoire
-             saveToHistory(word, 'NORMAL'); // On log les faux essais ? Non, on log que le final généralement.
+            APP_STATE.forceConfig.count = APP_STATE.forceConfig.initialCount; 
         }
     } 
+    // --- LOGIQUE VRTX ---
     else if (APP_STATE.mode === 'VRTX') {
-        // VRTX Mode : On doit forcer une lettre spécifique
-        // On récupère le mot source et l'index actuel
         const sourceWord = APP_STATE.vrtxConfig.word;
-        const targetRank = APP_STATE.vrtxConfig.rank; // 1-based (ex: 4)
-        const charIndex = APP_STATE.vrtxConfig.index; // 0-based
-        
+        const targetRank = APP_STATE.vrtxConfig.rank; 
+        const charIndex = APP_STATE.vrtxConfig.index;
+
         if (charIndex < sourceWord.length) {
             const targetLetter = sourceWord[charIndex];
             
-            // On cherche un mot qui a 'targetLetter' à la position 'targetRank'
-            // Et qui n'est PAS le mot source lui-même
-            const potentialWords = window.WORDS_BY_RANK[targetRank][targetLetter];
+            // Trouver un mot valide dans data.js
+            let forcedWord = "ERREUR";
             
-            if (potentialWords && potentialWords.length > 0) {
-                // Filtrer le mot source pour ne pas qu'il apparaisse
-                const filtered = potentialWords.filter(w => w !== sourceWord);
-                const randomWord = filtered[Math.floor(Math.random() * filtered.length)];
-                
-                // INJECTION
-                elementDom.innerText = randomWord;
-                
-                // Incrémenter pour le prochain scroll
-                APP_STATE.vrtxConfig.index++;
-                
-                saveToHistory(randomWord, 'VRTX');
-                sendToFirebase(randomWord, 'VRTX');
+            // Vérifions si WORDS_BY_RANK existe (data.js)
+            if (window.WORDS_BY_RANK && window.WORDS_BY_RANK[targetRank] && window.WORDS_BY_RANK[targetRank][targetLetter]) {
+                const candidates = window.WORDS_BY_RANK[targetRank][targetLetter];
+                // Filtrer pour ne pas tomber sur le mot source lui-même (trop évident)
+                const filtered = candidates.filter(w => w !== sourceWord);
+                if (filtered.length > 0) {
+                    forcedWord = filtered[Math.floor(Math.random() * filtered.length)];
+                } else {
+                    forcedWord = candidates[0];
+                }
             } else {
-                console.error("Pas de mot trouvé pour VRTX", targetLetter, targetRank);
-                // Fallback
-                saveToHistory(word, 'NORMAL');
-                sendToFirebase(word, 'NORMAL');
+                // Fallback si pas de mot trouvé (pour éviter le crash)
+                forcedWord = "X" + targetLetter + "X"; 
             }
+
+            // Injection
+            elementToChange.innerText = forcedWord;
             
-            // Si on a fini le mot
+            APP_STATE.lastMagicApplied = 'VRTX';
+            APP_STATE.vrtxConfig.index++;
+
+            // Fin du mot ?
             if (APP_STATE.vrtxConfig.index >= sourceWord.length) {
-                 APP_STATE.mode = 'NORMAL';
+                APP_STATE.mode = 'NORMAL';
             }
         }
-    } 
-    else {
-        // Mode Normal
-        saveToHistory(word, 'NORMAL');
-        sendToFirebase(word, 'NORMAL');
     }
 }
 
 
-// --- GESTION DES TRIGGERS ET MODALES ---
+// --- TRIGGERS & UI ---
 
 function setupTriggers() {
+    // Boutons Header
+    themeBtn.onclick = () => {
+        isDarkMode = !isDarkMode;
+        document.body.className = isDarkMode ? 'theme-dark' : 'theme-light';
+        themeBtn.innerText = isDarkMode ? '☀️' : '🌙';
+    };
+
+    langBtn.onclick = toggleLanguage;
+
+    // Zones Secrètes
     const zones = ['left', 'center', 'right'];
     const actions = {
         'left': () => openModal('force'),
@@ -222,7 +268,7 @@ function setupTriggers() {
         let clickTimer = null;
         let longPressTimer = null;
 
-        // Triple Click Logic
+        // Triple Click
         el.addEventListener('click', () => {
             clickCount++;
             clearTimeout(clickTimer);
@@ -233,22 +279,27 @@ function setupTriggers() {
             }
         });
 
-        // Long Press Logic
-        el.addEventListener('mousedown', () => {
-            longPressTimer = setTimeout(() => actions[zone](), 1500);
-        });
-        el.addEventListener('mouseup', () => clearTimeout(longPressTimer));
-        el.addEventListener('touchstart', () => {
-            longPressTimer = setTimeout(() => actions[zone](), 1500);
-        });
-        el.addEventListener('touchend', () => clearTimeout(longPressTimer));
+        // Long Press (Mobile)
+        const startPress = (e) => {
+            // e.preventDefault(); // Optionnel, peut bloquer le scroll si mal placé
+            longPressTimer = setTimeout(() => {
+                actions[zone]();
+                // Vibration feedback si supporté
+                if(navigator.vibrate) navigator.vibrate(50);
+            }, 1000); // 1 seconde
+        };
+        const endPress = () => clearTimeout(longPressTimer);
+
+        el.addEventListener('mousedown', startPress);
+        el.addEventListener('mouseup', endPress);
+        el.addEventListener('mouseleave', endPress);
+        el.addEventListener('touchstart', startPress, {passive: true});
+        el.addEventListener('touchend', endPress);
     });
 
-    // Close Modal Overlay
+    // Fermeture Modale
     document.getElementById('modal-overlay').addEventListener('click', (e) => {
-        if (e.target.id === 'modal-overlay') {
-            closeModals();
-        }
+        if (e.target.id === 'modal-overlay') closeModals();
     });
 }
 
@@ -257,6 +308,10 @@ function openModal(type) {
     document.querySelectorAll('.modal-content').forEach(el => el.classList.add('hidden'));
     document.getElementById(`modal-${type}`).classList.remove('hidden');
     
+    // Focus auto sur l'input si présent
+    const input = document.querySelector(`#modal-${type} input`);
+    if(input) input.focus();
+
     if(type === 'history') updateHistoryUI();
 }
 
@@ -265,73 +320,60 @@ function closeModals() {
 }
 
 function setupModals() {
-    // --- FORCE SETUP ---
-    const forceCountContainer = document.getElementById('force-count-group');
-    for(let i=1; i<=6; i++) {
-        const btn = document.createElement('div');
-        btn.className = 'radio-btn';
-        btn.innerText = i;
-        btn.onclick = () => {
-            document.querySelectorAll('#force-count-group .radio-btn').forEach(b => b.classList.remove('selected'));
-            btn.classList.add('selected');
-            APP_STATE.forceConfig.initialCount = i;
-        };
-        forceCountContainer.appendChild(btn);
-    }
+    // FORCE MODE UI
+    const forceGroup = document.getElementById('force-count-group');
+    createRadioButtons(forceGroup, 6, (val) => APP_STATE.forceConfig.initialCount = val);
 
     document.getElementById('btn-force-activate').addEventListener('click', () => {
-        const word = document.getElementById('force-word-input').value.toUpperCase().trim();
-        if(word && APP_STATE.forceConfig.initialCount > 0) {
+        const val = document.getElementById('force-word-input').value.trim().toUpperCase();
+        if(val && APP_STATE.forceConfig.initialCount > 0) {
             APP_STATE.mode = 'FORCE';
-            APP_STATE.forceConfig.target = word;
+            APP_STATE.forceConfig.target = val;
             APP_STATE.forceConfig.count = APP_STATE.forceConfig.initialCount;
             closeModals();
-            alert("FORCE MODE ACTIVATED"); // Feedback subtil possible (vibration)
+            // Pas d'alerte, c'est secret !
         }
     });
 
-    // --- VRTX SETUP ---
+    // VRTX MODE UI
     const vrtxInput = document.getElementById('vrtx-word-input');
     vrtxInput.addEventListener('input', (e) => {
-        const len = e.target.value.length;
-        document.getElementById('vrtx-counter').innerText = `(${len})`;
+        document.getElementById('vrtx-counter').innerText = `(${e.target.value.length})`;
     });
 
-    const vrtxRankContainer = document.getElementById('vrtx-rank-group');
-    for(let i=1; i<=6; i++) {
-        const btn = document.createElement('div');
-        btn.className = 'radio-btn';
-        btn.innerText = i;
-        btn.onclick = () => {
-            document.querySelectorAll('#vrtx-rank-group .radio-btn').forEach(b => b.classList.remove('selected'));
-            btn.classList.add('selected');
-            APP_STATE.vrtxConfig.rank = i;
-        };
-        vrtxRankContainer.appendChild(btn);
-    }
+    const vrtxGroup = document.getElementById('vrtx-rank-group');
+    createRadioButtons(vrtxGroup, 6, (val) => APP_STATE.vrtxConfig.rank = val);
 
     document.getElementById('btn-vrtx-activate').addEventListener('click', () => {
-        const word = vrtxInput.value.toUpperCase().trim();
-        if(word && APP_STATE.vrtxConfig.rank > 0) {
+        const val = vrtxInput.value.trim().toUpperCase();
+        if(val && APP_STATE.vrtxConfig.rank > 0) {
             APP_STATE.mode = 'VRTX';
-            APP_STATE.vrtxConfig.word = word;
+            APP_STATE.vrtxConfig.word = val;
             APP_STATE.vrtxConfig.index = 0;
             closeModals();
-            alert("VRTX MODE ACTIVATED");
         }
     });
 
-    // --- HISTORY SETUP ---
+    // HISTORY UI
     document.getElementById('btn-clear-history').addEventListener('click', () => {
         APP_STATE.history = [];
         updateHistoryUI();
     });
+}
 
-    // Theme Toggle
-    document.getElementById('theme-toggle').addEventListener('click', () => {
-        isDarkMode = !isDarkMode;
-        document.body.className = isDarkMode ? 'theme-dark' : 'theme-light';
-    });
+function createRadioButtons(container, count, callback) {
+    container.innerHTML = '';
+    for(let i=1; i<=count; i++) {
+        const btn = document.createElement('div');
+        btn.className = 'radio-btn';
+        btn.innerText = i;
+        btn.onclick = () => {
+            Array.from(container.children).forEach(c => c.classList.remove('selected'));
+            btn.classList.add('selected');
+            callback(i);
+        };
+        container.appendChild(btn);
+    }
 }
 
 function updateHistoryUI() {
@@ -339,36 +381,31 @@ function updateHistoryUI() {
     list.innerHTML = '';
     APP_STATE.history.slice().reverse().forEach(item => {
         const li = document.createElement('li');
-        li.innerText = item.word;
-        if(item.type !== 'NORMAL') li.classList.add('forced');
+        li.innerText = `${item.word}`;
+        if(item.type !== 'NORMAL') {
+            li.classList.add('forced');
+            li.innerHTML += ` <small>(${item.type})</small>`;
+        }
         list.appendChild(li);
     });
 }
 
 function saveToHistory(word, type) {
-    APP_STATE.history.push({ word, type });
-    if(APP_STATE.history.length > 10) APP_STATE.history.shift();
+    APP_STATE.history.push({ word, type, time: new Date() });
+    if(APP_STATE.history.length > 20) APP_STATE.history.shift();
 }
 
-// --- FIREBASE INTEGRATION ---
-
+// --- FIREBASE ---
 async function sendToFirebase(word, type) {
     if (!window.db) return;
-    
     try {
         await window.addDoc(window.collection(window.db, "history"), {
             word: word,
             type: type,
             timestamp: window.serverTimestamp()
         });
-    } catch (e) {
-        console.error("Error adding document: ", e);
-    }
+    } catch (e) { console.error("Firebase Error", e); }
 }
 
-function setupWheel() {
-    // Basic setup already handled in render
-}
-
-// Lancement
+// Start
 init();
