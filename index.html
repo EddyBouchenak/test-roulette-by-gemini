@@ -3,30 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Roulette v2.1</title>
+    <title>Roulette v2.2</title>
     <link rel="stylesheet" href="style.css">
+    
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
         import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
         
-        // CONFIGURATION FIREBASE (À REMPLIR)  
+        // Laisser vide ou mettre vos clés. Le app.js gérera si ça manque.
         const firebaseConfig = {
-            apiKey: "VOTRE_API_KEY",
-            authDomain: "VOTRE_PROJECT.firebaseapp.com",
-            projectId: "VOTRE_PROJECT_ID",
-            storageBucket: "VOTRE_BUCKET.appspot.com",
-            messagingSenderId: "VOTRE_SENDER_ID",
-            appId: "VOTRE_APP_ID"
+            apiKey: "API_KEY",
+            authDomain: "PROJECT.firebaseapp.com",
+            projectId: "PROJECT_ID",
+            storageBucket: "BUCKET.appspot.com",
+            messagingSenderId: "SENDER_ID",
+            appId: "APP_ID"
         };
 
-        const app = initializeApp(firebaseConfig);
-        window.db = getFirestore(app);
-        window.addDoc = addDoc;
-        window.collection = collection;
-        window.serverTimestamp = serverTimestamp;
+        try {
+            const app = initializeApp(firebaseConfig);
+            window.db = getFirestore(app);
+            window.addDoc = addDoc;
+            window.collection = collection;
+            window.serverTimestamp = serverTimestamp;
+            console.log("Firebase initialized");
+        } catch (e) {
+            console.log("Firebase non configuré ou erreur locale (CORS)");
+        }
     </script>
 </head>
-<body class="theme-dark"> <div class="header">
+<body class="theme-dark">
+
+    <div class="header">
         <button id="theme-toggle" class="icon-btn">☀️</button>
         <button id="lang-toggle" class="text-btn">FR</button>
     </div>
@@ -34,11 +42,15 @@
     <div class="picker-container">
         <div class="focus-lens"></div>
         <ul id="wheel" class="wheel">
-            </ul>
+            <li style="opacity:0.5; font-size: 1rem;">Chargement...</li>
+        </ul>
     </div>
 
-    <div id="trigger-left" class="trigger-zone left"></div>   <div id="trigger-center" class="trigger-zone center"></div> <div id="trigger-right" class="trigger-zone right"></div>  <div id="modal-overlay" class="modal-overlay hidden">
-        
+    <div id="trigger-left" class="trigger-zone left" title="Force"></div>
+    <div id="trigger-center" class="trigger-zone center" title="History"></div>
+    <div id="trigger-right" class="trigger-zone right" title="VRTX"></div>
+
+    <div id="modal-overlay" class="modal-overlay hidden">
         <div id="modal-force" class="modal-content hidden">
             <h2>MODE FORCE</h2>
             <div class="input-group">
